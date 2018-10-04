@@ -50,6 +50,14 @@
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:7f081bc4c81e3e69f4d3b4a87e1b23f2a395e9804f06895c52f8f4157af7a35a"
+  name = "github.com/segmentio/kafka-go"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "48c37f796910d8154479aaa04ade5843ae4f55d0"
+  version = "v0.1.0"
+
+[[projects]]
   branch = "master"
   digest = "1:76ee51c3f468493aff39dbacc401e8831fbb765104cbf613b89bef01cf4bad70"
   name = "golang.org/x/net"
@@ -64,6 +72,7 @@
     "github.com/coreos/pkg/flagutil",
     "github.com/dghubble/go-twitter/twitter",
     "github.com/dghubble/oauth1",
+    "github.com/segmentio/kafka-go",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

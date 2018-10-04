@@ -1,16 +1,19 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/coreos/pkg/flagutil"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
+	kafka "github.com/segmentio/kafka-go"
 )
 
 func main() {
@@ -34,50 +37,40 @@ func main() {
 	// Twitter Client
 	client := twitter.NewClient(httpClient)
 
-	// Convenience Demux demultiplexed stream messages
-	demux := twitter.NewSwitchDemux()
-	demux.Tweet = func(tweet *twitter.Tweet) {
-		fmt.Println(tweet.Text)
-	}
-	demux.DM = func(dm *twitter.DirectMessage) {
-		fmt.Println(dm.SenderID)
-	}
-	demux.Event = func(event *twitter.Event) {
-		fmt.Printf("%#v\n", event)
-	}
-
 	fmt.Println("Starting Stream...")
 
-	// FILTER
-	filterParams := &twitter.StreamFilterParams{
-		// Track:         []string{"cat"},
+	// We use the sample API to get random tweet feeds from Twitter.
+	sampleParams := &twitter.StreamSampleParams{
 		StallWarnings: twitter.Bool(true),
 	}
-	stream, err := client.Streams.Filter(filterParams)
+	stream, err := client.Streams.Sample(sampleParams)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// USER (quick test: auth'd user likes a tweet -> event)
-	// userParams := &twitter.StreamUserParams{
-	// 	StallWarnings: twitter.Bool(true),
-	// 	With:          "followings",
-	// 	Language:      []string{"en"},
-	// }
-	// stream, err := client.Streams.User(userParams)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	// make a writer that produces to topic-A, using the least-bytes distribution
+	w := kafka.NewWriter(kafka.WriterConfig{
+		Brokers:  []string{"localhost:9092"},
+		Topic:    "twitter",
+		Balancer: &kafka.LeastBytes{},
+		Async:    true,
+	})
 
-	// SAMPLE
-	// sampleParams := &twitter.StreamSampleParams{
-	// 	StallWarnings: twitter.Bool(true),
-	// }
-	// stream, err := client.Streams.Sample(sampleParams)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	totalCount := 0
 
+	// demultiplexed messages, we are only interested in Tweets
+	demux := twitter.NewSwitchDemux()
+	demux.Tweet = func(tweet *twitter.Tweet) {
+		fmt.Println("Tweet Text:", tweet.Text)
+		totalCount += 1
+		w.WriteMessages(context.Background(),
+			kafka.Message{
+				Value: []byte(tweet.Text),
+			},
+		)
+	}
+
+	startTime := time.Now()
 	// Receive messages until stopped or stream quits
 	go demux.HandleChan(stream.Messages)
 
@@ -88,4 +81,10 @@ func main() {
 
 	fmt.Println("Stopping Stream...")
 	stream.Stop()
+
+	endTime := time.Now()
+
+	fmt.Println("Tweet Per Second Is:", float64(totalCount)/float64(endTime.Unix()-startTime.Unix()), "per second")
+
+	w.Close()
 }
