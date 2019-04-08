@@ -40,7 +40,3 @@
 [prune]
   go-tests = true
   unused-packages = true
-
-[[constraint]]
-  name = "github.com/segmentio/kafka-go"
-  version = "0.1.0"
